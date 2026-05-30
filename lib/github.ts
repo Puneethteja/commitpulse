@@ -1,14 +1,25 @@
 // lib/github.ts
 
-import type { ContributionCalendar, ContributionDay } from '@/types';
+import type {
+  ContributionCalendar,
+  ContributionDay,
+  ContributionWeek,
+  GraphNode,
+  GraphLink,
+} from '@/types';
 import { calculateStreak, aggregateCalendars } from '@/lib/calculate';
 import { DistributedCache } from '@/lib/cache';
 import { LANGUAGE_COLORS } from '@/lib/svg/languageColors';
 import { CONTRIBUTION_MILESTONES, STREAK_MILESTONES } from './svg/constants';
 
 interface GitHubRepo {
+  name: string;
   stargazers_count: number;
   language: string | null;
+  fork?: boolean;
+  forks_count?: number;
+  updated_at?: string;
+  owner?: { login: string };
 }
 
 const MAX_RETRIES = 3;
@@ -168,7 +179,7 @@ function getGraphQLErrorMessage(errors: unknown): string {
   if (!Array.isArray(errors)) return 'GitHub GraphQL API returned an unknown error';
   const firstError = errors[0];
   if (
-    firstError &&
+    firstError !== null &&
     typeof firstError === 'object' &&
     'message' in firstError &&
     typeof firstError.message === 'string'
@@ -212,8 +223,25 @@ export function cacheKey(
   kind: 'contributions' | 'profile' | 'repos',
   username: string,
   year?: string
+): string;
+export function cacheKey(
+  kind: 'contributions' | 'profile' | 'repos',
+  username: string,
+  from?: string,
+  to?: string
+): string;
+export function cacheKey(
+  kind: 'contributions' | 'profile' | 'repos',
+  username: string,
+  yearOrFrom?: string,
+  to?: string
 ): string {
-  return year ? `${kind}:${username.toLowerCase()}:${year}` : `${kind}:${username.toLowerCase()}`;
+  if (yearOrFrom && to) {
+    return `${kind}:${username.toLowerCase()}:${yearOrFrom.substring(0, 10)}:${to.substring(0, 10)}`;
+  }
+  return yearOrFrom
+    ? `${kind}:${username.toLowerCase()}:${yearOrFrom.substring(0, 4)}`
+    : `${kind}:${username.toLowerCase()}`;
 }
 
 export function clearGitHubApiCacheForTests(): void {
@@ -268,17 +296,75 @@ export function displayName(profile: GitHubUserProfile): string {
  * DATA FETCHING
  * ========================================================================== */
 
+function mergeCalendars(
+  oldCal: ContributionCalendar,
+  newCal: ContributionCalendar
+): ContributionCalendar {
+  const dayMap = new Map<string, ContributionDay>();
+
+  for (const week of oldCal.weeks) {
+    for (const day of week.contributionDays) {
+      dayMap.set(day.date, day);
+    }
+  }
+
+  for (const week of newCal.weeks) {
+    for (const day of week.contributionDays) {
+      dayMap.set(day.date, day);
+    }
+  }
+
+  const sortedDays = Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+  const mergedWeeks: ContributionWeek[] = [];
+  let currentWeek: ContributionWeek = { contributionDays: [] };
+
+  for (const day of sortedDays) {
+    const dateObj = new Date(day.date);
+    if (currentWeek.contributionDays.length > 0 && dateObj.getUTCDay() === 0) {
+      mergedWeeks.push(currentWeek);
+      currentWeek = { contributionDays: [] };
+    }
+    currentWeek.contributionDays.push(day);
+  }
+  if (currentWeek.contributionDays.length > 0) {
+    mergedWeeks.push(currentWeek);
+  }
+
+  const total = sortedDays.reduce((sum, d) => sum + d.contributionCount, 0);
+
+  return {
+    totalContributions: total,
+    weeks: mergedWeeks,
+  };
+}
+
 export async function fetchGitHubContributions(
   username: string,
   options: FetchOptions = {}
 ): Promise<ContributionCalendar> {
-  const key = cacheKey('contributions', username, options.from?.substring(0, 4));
-  if (!options.bypassCache) {
-    const cached = await contributionsCache.get(key);
-    if (cached) return cached;
+  const key = cacheKey('contributions', username, options.from, options.to);
+  const cached = await contributionsCache.get(key);
+
+  const now = Date.now();
+  const isStale = cached?.lastSyncedAt
+    ? now - new Date(cached.lastSyncedAt).getTime() > GITHUB_CACHE_TTL_MS
+    : true;
+
+  if (cached && !isStale && !options.bypassCache) {
+    return cached;
   }
 
   const load = async () => {
+    const isDeltaSync = cached && cached.lastSyncedAt && !options.bypassCache;
+    let queryFrom = options.from;
+
+    if (isDeltaSync) {
+      const lastSyncedDate = new Date(cached.lastSyncedAt!);
+      lastSyncedDate.setUTCDate(lastSyncedDate.getUTCDate() - 1);
+      queryFrom = lastSyncedDate.toISOString();
+    }
+
     const query = `
       query($login: String!, $from: DateTime, $to: DateTime) {
         user(login: $login) {
@@ -303,7 +389,7 @@ export async function fetchGitHubContributions(
       headers: getHeaders(),
       body: JSON.stringify({
         query,
-        variables: { login: username, from: options.from, to: options.to },
+        variables: { login: username, from: queryFrom, to: options.to },
       }),
       cache: 'no-store',
       signal: options.signal,
@@ -337,7 +423,11 @@ export async function fetchGitHubContributions(
       throw new Error(`GitHub user "${username}" not found`);
     }
 
-    const calendar = data.data.user.contributionsCollection.contributionCalendar;
+    let calendar = data.data.user.contributionsCollection.contributionCalendar;
+
+    if (isDeltaSync && cached) {
+      calendar = mergeCalendars(cached, calendar);
+    }
 
     // Inject deterministic Lines of Code (LoC) approximation
     // Since GitHub's contributionCalendar doesn't provide native LoC metrics,
@@ -369,7 +459,11 @@ export async function fetchGitHubContributions(
       });
     });
 
-    if (!options.bypassCache) await contributionsCache.set(key, calendar, GITHUB_CACHE_TTL_MS);
+    calendar.lastSyncedAt = new Date().toISOString();
+
+    // Cache for 7 days to enable delta syncs, staleness is handled logically
+    const LONG_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+    if (!options.bypassCache) await contributionsCache.set(key, calendar, LONG_CACHE_TTL);
 
     return calendar;
   };
@@ -728,6 +822,44 @@ export function buildCommitClock(allDays: ContributionDay[]) {
   return dayNames.map((name, i) => ({ day: name, commits: dayTotals[i] }));
 }
 
+export async function fetchContributedRepos(
+  username: string,
+  options: FetchOptions = {}
+): Promise<Record<string, unknown>[]> {
+  const query = `
+    query($login: String!) {
+      user(login: $login) {
+        repositoriesContributedTo(first: 100, contributionTypes: [COMMIT, ISSUE, PULL_REQUEST, REPOSITORY], orderBy: {field: UPDATED_AT, direction: DESC}) {
+          nodes {
+            name
+            nameWithOwner
+            owner { login }
+            stargazerCount
+            forkCount
+            primaryLanguage { name }
+            updatedAt
+          }
+        }
+      }
+    }
+  `;
+
+  const res = await fetchWithRetry(GITHUB_GRAPHQL_URL, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({
+      query,
+      variables: { login: username },
+    }),
+    cache: 'no-store',
+    signal: options.signal,
+  });
+
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data?.data?.user?.repositoriesContributedTo?.nodes || [];
+}
+
 export interface DeveloperScoreInput {
   repos: number;
   followers: number;
@@ -756,11 +888,13 @@ export function computeDeveloperScore({
 }
 
 export async function getFullDashboardData(username: string, options: FetchOptions = {}) {
-  const [profileResult, reposResult, calendarResult] = await Promise.allSettled([
-    fetchUserProfile(username, options),
-    fetchUserRepos(username, options),
-    fetchGitHubContributions(username, options),
-  ]);
+  const [profileResult, reposResult, calendarResult, contributedReposResult] =
+    await Promise.allSettled([
+      fetchUserProfile(username, options),
+      fetchUserRepos(username, options),
+      fetchGitHubContributions(username, options),
+      fetchContributedRepos(username, options),
+    ]);
 
   if (profileResult.status === 'rejected') {
     throw new Error(`[GitHub API] Failed to fetch profile for user "${username}"`, {
@@ -774,6 +908,8 @@ export async function getFullDashboardData(username: string, options: FetchOptio
     calendarResult.status === 'fulfilled'
       ? calendarResult.value
       : ({ totalContributions: 0, weeks: [] } as ContributionCalendar);
+  const contributedReposData =
+    contributedReposResult.status === 'fulfilled' ? contributedReposResult.value : [];
 
   const streakStats = calculateStreak(calendarData);
   const totalStars = reposData.reduce((acc, repo) => acc + repo.stargazers_count, 0);
@@ -860,6 +996,73 @@ export async function getFullDashboardData(username: string, options: FetchOptio
 
   const insights = buildInsights(streakStats, languages);
 
+  // Building Graph Data
+  const nodes: GraphNode[] = [];
+  const links: GraphLink[] = [];
+
+  // Central User Node
+  nodes.push({
+    id: profileData.login,
+    name: displayName(profileData),
+    type: 'User',
+    val: 30,
+    color: '#E2E8F0', // slate-200
+  });
+
+  // Personal Repositories & Forks
+  reposData.forEach((repo) => {
+    const isFork = repo.fork;
+    nodes.push({
+      id: repo.name,
+      name: repo.name,
+      type: isFork ? 'Fork' : 'Repo',
+      val: Math.max(5, Math.min(20, (repo.stargazers_count || 0) + 5)),
+      color: isFork ? '#F97316' : '#3B82F6', // Orange : Blue
+      stats: {
+        stars: repo.stargazers_count,
+        forks: repo.forks_count,
+        language: repo.language,
+        updatedAt: repo.updated_at,
+      },
+    });
+    links.push({
+      source: profileData.login,
+      target: repo.name,
+    });
+  });
+
+  // Open Source Contributions
+  contributedReposData.forEach((repoItem) => {
+    const repo = repoItem as {
+      name: string;
+      nameWithOwner: string;
+      owner?: { login: string };
+      stargazerCount?: number;
+      forkCount?: number;
+      primaryLanguage?: { name: string } | null;
+      updatedAt?: string;
+    };
+    nodes.push({
+      id: repo.nameWithOwner,
+      name: repo.name,
+      type: 'Contribution',
+      val: Math.max(5, Math.min(20, (repo.stargazerCount || 0) / 10 + 5)),
+      color: '#22C55E', // Green
+      stats: {
+        stars: repo.stargazerCount,
+        forks: repo.forkCount,
+        language: repo.primaryLanguage?.name,
+        updatedAt: repo.updatedAt,
+      },
+    });
+    links.push({
+      source: profileData.login,
+      target: repo.nameWithOwner,
+    });
+  });
+
+  const graphData = { nodes, links };
+
   return {
     profile,
     stats: {
@@ -872,6 +1075,7 @@ export async function getFullDashboardData(username: string, options: FetchOptio
     insights,
     achievements,
     commitClock,
+    graphData,
   };
 }
 

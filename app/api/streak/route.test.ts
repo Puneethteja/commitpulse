@@ -100,6 +100,20 @@ describe('GET /api/streak', () => {
   });
 
   describe('parameter validation', () => {
+    it('falls back to default layout when an unsupported layout is provided', async () => {
+      const response = await GET(
+        makeRequest({
+          user: 'octocat',
+          layout: 'unsupported_layout',
+        })
+      );
+
+      expect(response.status).toBe(200);
+
+      const body = await response.text();
+
+      expect(body).toContain('<svg');
+    });
     it('returns 400 when the user parameter is missing', async () => {
       const response = await GET(makeRequest());
 
@@ -161,6 +175,14 @@ describe('GET /api/streak', () => {
       }
 
       expect(fetchGitHubContributions).not.toHaveBeenCalled();
+    });
+
+    it('returns 200 for unsupported ?layout query parameter values (route ignores it)', async () => {
+      const response = await GET(
+        new Request('http://localhost:3000/api/streak?user=octocat&layout=unsupported_layout')
+      );
+
+      expect(response.status).toBe(200);
     });
 
     it('should return 200 OK and valid SVG when the optional repo query parameter is provided', async () => {
@@ -459,6 +481,11 @@ describe('GET /api/streak', () => {
 
       expect(response.status).toBe(400);
       expect(body.details.fieldErrors.year[0]).toContain('GitHub was founded in 2008');
+    });
+
+    it('returns 200 for unknown ?date= parameter (not part of schema)', async () => {
+      const response = await GET(makeRequest({ user: 'octocat', date: '2026-15-40' }));
+      expect(response.status).toBe(200);
     });
 
     it('returns 400 for malformed numeric year', async () => {

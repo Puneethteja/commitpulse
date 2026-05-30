@@ -410,6 +410,15 @@ describe('TTLCache', () => {
       cache.destroy();
     });
 
+    it('rejects an empty string cache key', () => {
+      const cache = new TTLCache<string>();
+
+      expect(() => cache.set('', 'value', 60_000)).toThrow('Cache key cannot be empty');
+      expect(cache.has('')).toBe(false);
+
+      cache.destroy();
+    });
+
     it('handles rapid get/set/delete cycles', () => {
       const cache = new TTLCache<number>();
       for (let i = 0; i < 100; i++) {
