@@ -418,7 +418,7 @@ describe('generateSVG', () => {
 
     it('includes desc element in auto-theme SVG output', () => {
       const svg = generateSVG(mockStats, autoParams, mockCalendar);
-      expect(svg).toContain('<desc>');
+      expect(svg).toContain('<desc id="cp-desc-avi">');
       expect(svg).toContain(String(mockStats.totalContributions));
     });
 
@@ -672,8 +672,12 @@ describe('generateSVG', () => {
         mockCalendar
       );
 
-      expect(svg).toContain('<title>CommitPulse User Stats for octocat</title>');
-      expect(svg).toContain('<desc>');
+      expect(svg).toContain(
+        '<title id="cp-title-octocat">CommitPulse User Stats for octocat</title>'
+      );
+      expect(svg).toContain('<desc id="cp-desc-octocat">');
+      expect(svg).toContain('aria-labelledby="cp-title-octocat"');
+      expect(svg).toContain('aria-describedby="cp-desc-octocat"');
       expect(svg).toContain('100');
       expect(svg).toContain('10');
     });

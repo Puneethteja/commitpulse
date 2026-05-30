@@ -95,14 +95,15 @@ function renderHeader(
   safeUser: string,
   stats: StreakStats,
   sf: number,
-  params: BadgeParams
+  params: BadgeParams,
+  safeId: string
 ): string {
   const unit = params.mode === 'loc' ? 'lines of code' : 'total contributions';
   const entity = params.org ? 'Organization' : params.repo ? 'Repository' : 'User';
 
   return `
-  <title>CommitPulse ${entity} Stats for ${safeUser}</title>
-  <desc>
+  <title id="cp-title-${safeId}">CommitPulse ${entity} Stats for ${safeUser}</title>
+  <desc id="cp-desc-${safeId}">
     ${safeUser} has ${stats.totalContributions} ${unit} and a longest streak of ${stats.longestStreak} days.
   </desc>
   ${renderDefs(sf, params)}`;
@@ -499,9 +500,11 @@ export function generateSVG(
     : accent || '00ffaa';
   const mainAccentHex = mainAccent.startsWith('#') ? mainAccent : `#${mainAccent}`;
 
+  const safeId = safeUser.replace(/[^a-zA-Z0-9-]/g, '_').toLowerCase();
+
   return `
-<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" fill="none" role="img">
-  ${renderHeader(safeUser, stats, sf, params)}
+<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" fill="none" role="img" aria-labelledby="cp-title-${safeId}" aria-describedby="cp-desc-${safeId}">
+  ${renderHeader(safeUser, stats, sf, params, safeId)}
   ${renderStyle(selectedFont, statsFont, googleFontsImport, text, mainAccentHex, sf)}
   <rect width="${W}" height="${H}" rx="${radius}" fill="${params.hideBackground ? 'transparent' : bg}" ${borderAttr} />
   <g transform="translate(0, ${Math.round(20 * sf)})">${towers}</g>
@@ -543,6 +546,8 @@ function generateAutoThemeSVG(
   const s = createScaler(sf);
   const fs = (n: number): number => Math.round(n * sf * 10) / 10;
 
+  const safeId = safeUser.replace(/[^a-zA-Z0-9-]/g, '_').toLowerCase();
+
   return `
 <svg
   xmlns="http://www.w3.org/2000/svg"
@@ -551,8 +556,10 @@ function generateAutoThemeSVG(
   viewBox="0 0 ${W} ${H}"
   fill="none"
   role="img"
+  aria-labelledby="cp-title-${safeId}"
+  aria-describedby="cp-desc-${safeId}"
 >
-  ${renderHeader(safeUser, stats, sf, params)}
+  ${renderHeader(safeUser, stats, sf, params, safeId)}
 
   <style>
 @import url('https://fonts.googleapis.com/css2?family=Fira+Code&amp;family=JetBrains+Mono&amp;family=Roboto&amp;family=Syncopate:wght@400;700&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap');
@@ -682,6 +689,7 @@ export function generateMonthlySVG(stats: MonthlyStats, params: BadgeParams): st
             : `0%`;
   }
   const deltaColor = stats.deltaAbsolute >= 0 ? accent : '#ff4444';
+  const safeId = safeUser.replace(/[^a-zA-Z0-9-]/g, '_').toLowerCase();
 
   return `
 <svg
@@ -691,8 +699,11 @@ export function generateMonthlySVG(stats: MonthlyStats, params: BadgeParams): st
   viewBox="0 0 ${width} ${height}"
   fill="none"
   role="img"
+  aria-labelledby="cp-title-${safeId}"
+  aria-describedby="cp-desc-${safeId}"
 >
-  <title>Monthly Stats for ${safeUser}</title>
+  <title id="cp-title-${safeId}">Monthly Stats for ${safeUser}</title>
+  <desc id="cp-desc-${safeId}">Monthly stats for ${safeUser}: ${stats.currentMonthTotal} ${commitsLabel} vs previous month delta of ${deltaText}.</desc>
   <style>
   @import url('https://fonts.googleapis.com/css2?family=Fira+Code&amp;family=JetBrains+Mono&amp;family=Roboto&amp;family=Syncopate:wght@400;700&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap');
   ${googleFontsImport}
@@ -867,6 +878,8 @@ export function generateWrappedSVG(
     ? 'class="cp-accent-stroke" stroke-opacity="0.15" stroke-width="1.5"'
     : borderAttr;
 
+  const safeId = safeUser.replace(/[^a-zA-Z0-9-]/g, '_').toLowerCase();
+
   return `
 <svg
   xmlns="http://www.w3.org/2000/svg"
@@ -875,8 +888,11 @@ export function generateWrappedSVG(
   viewBox="0 0 420 260"
   fill="none"
   role="img"
+  aria-labelledby="cp-title-${safeId}"
+  aria-describedby="cp-desc-${safeId}"
 >
-  <title>${safeUser}'s GitHub Wrapped ${year}</title>
+  <title id="cp-title-${safeId}">${safeUser}'s GitHub Wrapped ${year}</title>
+  <desc id="cp-desc-${safeId}">GitHub Wrapped stats for ${safeUser} in ${year}: ${stats.totalContributions} total contributions, top language is ${stats.topLanguage || 'Unknown'}, busiest month is ${stats.busiestMonth || 'Unknown'}.</desc>
   <defs>
     <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="3.5" result="blur"/>
@@ -1046,6 +1062,8 @@ function generateAutoThemeMonthlySVG(stats: MonthlyStats, params: BadgeParams): 
             : `0%`;
   }
 
+  const safeId = safeUser.replace(/[^a-zA-Z0-9-]/g, '_').toLowerCase();
+
   return `
 <svg
   xmlns="http://www.w3.org/2000/svg"
@@ -1054,8 +1072,11 @@ function generateAutoThemeMonthlySVG(stats: MonthlyStats, params: BadgeParams): 
   viewBox="0 0 ${width} ${height}"
   fill="none"
   role="img"
+  aria-labelledby="cp-title-${safeId}"
+  aria-describedby="cp-desc-${safeId}"
 >
-  <title>Monthly Stats for ${safeUser}</title>
+  <title id="cp-title-${safeId}">Monthly Stats for ${safeUser}</title>
+  <desc id="cp-desc-${safeId}">Monthly stats for ${safeUser}: ${stats.currentMonthTotal} ${commitsLabel} vs previous month delta of ${deltaText}.</desc>
   <style>
   @import url('https://fonts.googleapis.com/css2?family=Fira+Code&amp;family=JetBrains+Mono&amp;family=Roboto&amp;family=Syncopate:wght@400;700&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap');
   ${googleFontsImport}
@@ -1169,6 +1190,8 @@ export function generateNotFoundSVG(
       </g>`;
   }
 
+  const safeId = safeName.replace(/[^a-zA-Z0-9-]/g, '_').toLowerCase();
+
   return `<svg
   xmlns="http://www.w3.org/2000/svg"
   width="${SVG_WIDTH}"
@@ -1176,8 +1199,11 @@ export function generateNotFoundSVG(
   viewBox="0 0 ${SVG_WIDTH} ${SVG_HEIGHT}"
   fill="none"
   role="img"
+  aria-labelledby="cp-title-${safeId}"
+  aria-describedby="cp-desc-${safeId}"
 >
-  <title>User not found — ${safeName}</title>
+  <title id="cp-title-${safeId}">User not found — ${safeName}</title>
+  <desc id="cp-desc-${safeId}">The GitHub user ${safeName} was not found or has no contribution data.</desc>
   <defs>
     <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="5" result="blur"/>
@@ -1320,10 +1346,12 @@ export function generateVersusSVG(
   const s = createScaler(sf);
   const unit = params.mode === 'loc' ? 'lines of code' : 'total contributions';
 
+  const safeId = `${safeUser1}_vs_${safeUser2}`.replace(/[^a-zA-Z0-9-]/g, '_').toLowerCase();
+
   return `
-<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" fill="none" role="img">
-  <title>CommitPulse Versus Stats: ${safeUser1} vs ${safeUser2}</title>
-  <desc>${safeUser1} has ${stats1.totalContributions} ${unit}. ${safeUser2} has ${stats2.totalContributions} ${unit}.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" fill="none" role="img" aria-labelledby="cp-title-${safeId}" aria-describedby="cp-desc-${safeId}">
+  <title id="cp-title-${safeId}">CommitPulse Versus Stats: ${safeUser1} vs ${safeUser2}</title>
+  <desc id="cp-desc-${safeId}">${safeUser1} has ${stats1.totalContributions} ${unit}. ${safeUser2} has ${stats2.totalContributions} ${unit}.</desc>
   ${renderDefs(sf, params)}
   ${renderStyle(selectedFont, statsFont, googleFontsImport, text, accent, sf)}
   <rect width="${W}" height="${H}" rx="${radius}" fill="${params.hideBackground ? 'transparent' : bg}" />
@@ -1453,10 +1481,12 @@ function generateAutoThemeVersusSVG(
   const fs = (n: number): number => Math.round(n * sf * 10) / 10;
   const unit = params.mode === 'loc' ? 'lines of code' : 'total contributions';
 
+  const safeId = `${safeUser1}_vs_${safeUser2}`.replace(/[^a-zA-Z0-9-]/g, '_').toLowerCase();
+
   return `
-<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" fill="none" role="img">
-  <title>CommitPulse Versus Stats: ${safeUser1} vs ${safeUser2}</title>
-  <desc>${safeUser1} has ${stats1.totalContributions} ${unit}. ${safeUser2} has ${stats2.totalContributions} ${unit}.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" fill="none" role="img" aria-labelledby="cp-title-${safeId}" aria-describedby="cp-desc-${safeId}">
+  <title id="cp-title-${safeId}">CommitPulse Versus Stats: ${safeUser1} vs ${safeUser2}</title>
+  <desc id="cp-desc-${safeId}">${safeUser1} has ${stats1.totalContributions} ${unit}. ${safeUser2} has ${stats2.totalContributions} ${unit}.</desc>
   ${renderDefs(sf, params)}
   
   <style>
@@ -1569,6 +1599,8 @@ export function generateRateLimitSVG(
       </g>`;
   }
 
+  const safeId = 'rate_limit';
+
   return `<svg
   xmlns="http://www.w3.org/2000/svg"
   width="${SVG_WIDTH}"
@@ -1576,8 +1608,11 @@ export function generateRateLimitSVG(
   viewBox="0 0 ${SVG_WIDTH} ${SVG_HEIGHT}"
   fill="none"
   role="img"
+  aria-labelledby="cp-title-${safeId}"
+  aria-describedby="cp-desc-${safeId}"
 >
-  <title>Rate Limit Exceeded</title>
+  <title id="cp-title-${safeId}">Rate Limit Exceeded</title>
+  <desc id="cp-desc-${safeId}">GitHub API rate limit exceeded. Please try again later.</desc>
   <defs>
     <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="5" result="blur"/>
