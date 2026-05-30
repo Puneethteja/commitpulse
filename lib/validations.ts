@@ -185,11 +185,11 @@ export const streakParamsSchema = z.object({
   repo: z.string().optional(),
   org: z
     .string()
-    .optional()
     .max(39, { message: 'Organization name cannot exceed 39 characters' })
     .regex(GITHUB_USERNAME_REGEX, {
       message: 'Invalid organization name format',
-    }),
+    })
+    .optional(),
   labels: z.string().optional().transform(toBooleanFlag),
   labelColor: z
     .string()
