@@ -458,6 +458,17 @@ describe('TTLCache', () => {
       cache.destroy();
     });
 
+    it('throws TypeError when setting a null key', () => {
+      const cache = new TTLCache<string>();
+
+      expect(() => {
+        cache.set(null as unknown as string, 'value', 60_000);
+      }).toThrow(TypeError);
+      expect(cache.size()).toBe(0);
+
+      cache.destroy();
+    });
+
     it('throws RangeError when ttlMs is 0 or negative', () => {
       const cache = new TTLCache<string>();
       expect(() => cache.set('key', 'value', 0)).toThrow(RangeError);
