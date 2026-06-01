@@ -735,6 +735,37 @@ describe('calculateStreak', () => {
     expect(result.longestStreak).toBe(15);
   });
 
+  it('verify streak formulas for different starting days of the week timeline (Variation 3)', () => {
+    // Week 1: 0, 0, 0, 0, 1, 1, 1 (Starts on Friday, 3 days)
+    // Week 2: 1, 1, 1, 1, 1, 1, 1 (7 days)
+    // Week 3: 1, 1, 1, 1, 1        // Ends on Friday (5 days)
+    // Total continuous streak = 15 days, ending on the last day.
+    const calendar = buildCalendar([
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1, // Week 1 (Starts Fri)
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1, // Week 2
+      1,
+      1,
+      1,
+      1,
+      1, // Week 3 (Ends Fri)
+    ]);
+    const result = calculateStreak(calendar);
+    expect(result.currentStreak).toBe(15);
+    expect(result.longestStreak).toBe(15);
+  });
+
   it('verify streak formulas for multiple weeks gaps timeline (Variation 3)', () => {
     // Streak 1: 5 days
     // Gap 1: 14 days (2 weeks of zeros)

@@ -12,6 +12,8 @@ import { DistributedCache } from '@/lib/cache';
 import { LANGUAGE_COLORS } from '@/lib/svg/languageColors';
 import { CONTRIBUTION_MILESTONES, STREAK_MILESTONES } from './svg/constants';
 
+import 'server-only';
+
 interface GitHubRepo {
   name: string;
   stargazers_count: number;
