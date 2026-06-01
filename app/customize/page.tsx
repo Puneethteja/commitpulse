@@ -27,7 +27,6 @@ import { getExportSnippet, buildQueryParams } from './utils';
 function CustomizePageInner(): ReactElement {
   const [username, setUsername] = useState('');
   const [theme, setTheme] = useState('dark');
-  const [isFlashing, setIsFlashing] = useState(false);
   const [bgHex, setBgHex] = useState('');
   const [accentHex, setAccentHex] = useState('');
   const [textHex, setTextHex] = useState('');
@@ -54,7 +53,6 @@ function CustomizePageInner(): ReactElement {
   const [svgContent, setSvgContent] = useState<string>('');
   const [svgState, setSvgState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isInputHighlighted, setIsInputHighlighted] = useState(false);
   const trimmedUsername = username.trim();
   const hasUsername = trimmedUsername.length > 0;
   const isRandomTheme = theme === 'random';
@@ -409,7 +407,6 @@ function CustomizePageInner(): ReactElement {
                 setAccentHex('');
                 setTextHex('');
               }}
-              isHighlighted={isInputHighlighted}
             />
           </motion.aside>
 
