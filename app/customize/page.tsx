@@ -18,7 +18,9 @@ import type {
   Language,
   Timezone,
 } from './types';
+import { useDebounce } from '@/hooks/useDebounce';
 import { getExportSnippet, buildQueryParams } from './utils';
+import { validateGitHubUsername } from '@/lib/github';
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -52,6 +54,7 @@ export default function CustomizePage(): ReactElement {
   const [svgState, setSvgState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const trimmedUsername = username.trim();
+  const debouncedUsername = useDebounce(trimmedUsername, 400);
   const hasUsername = trimmedUsername.length > 0;
   const isRandomTheme = theme === 'random';
 
@@ -111,7 +114,32 @@ export default function CustomizePage(): ReactElement {
     language,
     timezone,
   });
-  const previewSrc = `/api/streak?${queryString}`;
+
+  const previewQueryString = buildQueryParams({
+    username: debouncedUsername,
+    theme,
+    bgHex,
+    accentHex,
+    textHex,
+    scale,
+    speed,
+    font,
+    year,
+    radius,
+    size,
+    hideTitle,
+    hideBackground,
+    hideStats,
+    viewMode,
+    deltaFormat,
+    badgeWidth,
+    badgeHeight,
+    grace,
+    language,
+    timezone,
+  });
+
+  const previewSrc = `/api/streak?${previewQueryString}`;
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -119,6 +147,13 @@ export default function CustomizePage(): ReactElement {
     if (!hasUsername) {
       setSvgContent('');
       setSvgState('idle');
+      return;
+    }
+
+    if (!validateGitHubUsername(debouncedUsername)) {
+      setSvgContent('');
+      setSvgState('error');
+      setErrorMessage("That doesn't look like a valid GitHub username");
       return;
     }
 
@@ -192,7 +227,7 @@ export default function CustomizePage(): ReactElement {
       });
 
     return () => controller.abort();
-  }, [previewSrc, hasUsername]);
+  }, [previewSrc, hasUsername, debouncedUsername]);
 
   const exportSnippet = getExportSnippet(exportFormat, queryString);
 
