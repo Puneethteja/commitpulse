@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X, RefreshCw, Share2 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import type { Achievement } from '@/types/dashboard';
+import type { Achievement, Repository } from '@/types/dashboard';
 import type { GraphNode, GraphLink } from '@/types';
 
 import RefreshButton from './RefreshButton';
@@ -26,6 +26,7 @@ import { useRouter } from 'next/navigation';
 import ProfileOptimizerModal from './ProfileOptimizerModal';
 import ResumeProfileSection from './ResumeProfileSection';
 import type { DashboardPeriod } from '@/utils/dashboardPeriod';
+import { PopularRepos } from './PopularRepos';
 
 // Define the dashboard data structure
 interface DashboardData {
@@ -74,6 +75,8 @@ interface DashboardData {
     nodes: GraphNode[];
     links: GraphLink[];
   };
+  popularRepos?: Repository[];
+  pinnedRepos?: Repository[];
 }
 
 interface DashboardClientProps {
@@ -136,7 +139,6 @@ export function generateCoderProfile(metrics: ProfileMetrics): CoderProfile {
   }
 
   // 4. Populate UI properties based on the derived profile.
-  // We use smooth curves here without the random 'hash' jitter for a cleaner UI.
   let peakHourStart = 9;
   let peakHourEnd = 17;
   let hourlyDistribution = new Array(24).fill(0);
@@ -320,10 +322,6 @@ function getPersonalityTags(
   return tags.slice(0, 3);
 }
 
-// ------------------------------------------------------------
-// DashboardClient Component
-// ------------------------------------------------------------
-
 export default function DashboardClient({
   initialData,
   username,
@@ -343,7 +341,6 @@ export default function DashboardClient({
   const compareInputRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
-  // Close modal on escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -354,7 +351,6 @@ export default function DashboardClient({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Focus trap: constrain Tab navigation within the modal when open
   const handleModalKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key !== 'Tab' || !modalRef.current) return;
 
@@ -366,7 +362,6 @@ export default function DashboardClient({
     const firstElement = focusableElements[0];
     const lastElement = focusableElements[focusableElements.length - 1];
 
-    // If focus is not within the modal, force it back inside
     const activeEl = document.activeElement;
     const isFocusInModal = modalRef.current.contains(activeEl);
 
@@ -389,14 +384,12 @@ export default function DashboardClient({
     }
   }, []);
 
-  // Restore focus to trigger button when modal closes
   useEffect(() => {
     if (!isModalOpen) {
       triggerRef.current?.focus();
     }
   }, [isModalOpen]);
 
-  // Auto-focus callback for the modal animation completion
   const handleModalAnimationComplete = useCallback(() => {
     compareInputRef.current?.focus();
   }, []);
@@ -490,17 +483,11 @@ export default function DashboardClient({
     }
   };
 
-  // ------------------------------------------------------------
-  // Compare Mode Statistics Calculations
-  // ------------------------------------------------------------
-
-  // Profile for User A using their actual dashboard metrics
   const coderProfileA = generateCoderProfile({
     currentStreak: initialData.stats.currentStreak,
     commitClock: initialData.commitClock,
   });
 
-  // Profile for User B using their comparison data metrics
   const coderProfileB = secondUserData
     ? generateCoderProfile({
         currentStreak: secondUserData.stats.currentStreak,
@@ -536,21 +523,18 @@ export default function DashboardClient({
       : [];
 
   if (isCompareMode && secondUserData) {
-    // Most Consistent: Peak Streak
     if (initialData.stats.peakStreak > secondUserData.stats.peakStreak) {
       badgesA.push('Most Consistent');
     } else if (secondUserData.stats.peakStreak > initialData.stats.peakStreak) {
       badgesB.push('Most Consistent');
     }
 
-    // Highest Activity: Total Contributions
     if (initialData.stats.totalContributions > secondUserData.stats.totalContributions) {
       badgesA.push('Highest Activity');
     } else if (secondUserData.stats.totalContributions > initialData.stats.totalContributions) {
       badgesB.push('Highest Activity');
     }
 
-    // Strongest Streak: Current Streak
     if (initialData.stats.currentStreak > secondUserData.stats.currentStreak) {
       badgesA.push('Strongest Streak');
     } else if (secondUserData.stats.currentStreak > initialData.stats.currentStreak) {
@@ -564,7 +548,6 @@ export default function DashboardClient({
       data-dashboard
       className="p-4 md:p-6 lg:p-8 min-h-screen relative bg-transparent"
     >
-      {/* Top Action Bar */}
       <div
         id="generate-dashboard-btn"
         className="flex justify-between items-center gap-4 mb-6 flex-wrap"
@@ -651,11 +634,8 @@ export default function DashboardClient({
         </div>
       </div>
 
-      {/* Main Dashboard Layout */}
       {!isCompareMode || !secondUserData || !coderProfileB ? (
-        /* Standard Single Profile View */
         <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr_320px] gap-6 lg:gap-8">
-          {/* Left Sidebar */}
           <aside className="flex flex-col gap-6 lg:row-span-2">
             <ProfileCard
               user={initialData.profile}
@@ -669,7 +649,6 @@ export default function DashboardClient({
             <ResumeProfileSection githubUsername={username} />
           </aside>
 
-          {/* Main Content */}
           <div className="flex flex-col gap-6 lg:gap-8 min-w-0">
             <section>
               <ActivityLandscape data={initialData.activity} />
@@ -689,7 +668,6 @@ export default function DashboardClient({
             </section>
           </div>
 
-          {/* Right Sidebar */}
           <aside className="flex flex-col gap-6">
             <div className="flex flex-col gap-4">
               <StatsCard
@@ -717,17 +695,19 @@ export default function DashboardClient({
             </div>
 
             <AIInsights insights={initialData.insights} />
+
+            <PopularRepos
+              popularRepos={initialData.popularRepos || []}
+              pinnedRepos={initialData.pinnedRepos || []}
+            />
           </aside>
 
-          {/* Repository Graph Section */}
           <div className="col-span-1 lg:col-span-2 lg:col-start-2">
             <RepositoryGraph data={initialData.graphData} />
           </div>
         </div>
       ) : (
-        /* Compare Mode Split-Dashboard View */
         <div className="flex flex-col gap-8">
-          {/* VS Profiles Summary Card */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
             <div className="relative">
               <ProfileCard
@@ -739,7 +719,6 @@ export default function DashboardClient({
                 }}
                 badges={badgesA}
               />
-              {/* Personality Tags */}
               <div className="flex flex-wrap gap-1.5 mt-3 justify-center">
                 {personalityTagsA.map((t) => (
                   <span
@@ -762,7 +741,6 @@ export default function DashboardClient({
                 }}
                 badges={badgesB}
               />
-              {/* Personality Tags */}
               <div className="flex flex-wrap gap-1.5 mt-3 justify-center">
                 {personalityTagsB.map((t) => (
                   <span
@@ -776,7 +754,6 @@ export default function DashboardClient({
             </div>
           </div>
 
-          {/* Metrics comparison cards grid */}
           <div>
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-widest mb-6">
               Head-to-Head Stats
@@ -841,9 +818,7 @@ export default function DashboardClient({
             </div>
           </div>
 
-          {/* Peak Coding Time & Inactivity Insights Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Peak Coding Time Analysis */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -854,7 +829,6 @@ export default function DashboardClient({
                 ⏰ Peak Coding Time Analysis
               </h3>
               <div className="grid grid-cols-2 gap-6">
-                {/* User A */}
                 <div className="flex flex-col">
                   <p className="text-xs text-[#A1A1AA] truncate font-medium mb-2">
                     {initialData.profile.name}
@@ -876,7 +850,6 @@ export default function DashboardClient({
                       </span>
                     </p>
                   </div>
-                  {/* Micro Bar Chart */}
                   <div className="w-full h-12 flex items-end gap-px mt-4">
                     {coderProfileA.hourlyDistribution.map((v, h) => (
                       <div
@@ -889,7 +862,6 @@ export default function DashboardClient({
                   </div>
                 </div>
 
-                {/* User B */}
                 <div className="flex flex-col">
                   <p className="text-xs text-white/65 truncate font-medium mb-2">
                     {secondUserData.profile.name}
@@ -911,7 +883,6 @@ export default function DashboardClient({
                       </span>
                     </p>
                   </div>
-                  {/* Micro Bar Chart */}
                   <div className="w-full h-12 flex items-end gap-px mt-4">
                     {coderProfileB.hourlyDistribution.map((v, h) => (
                       <div
@@ -926,7 +897,6 @@ export default function DashboardClient({
               </div>
             </motion.div>
 
-            {/* Inactivity & Consistency Insights */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -937,7 +907,6 @@ export default function DashboardClient({
                 💀 Inactivity & Recovery Insights
               </h3>
               <div className="space-y-4">
-                {/* Longest Inactive Gap */}
                 <div className="flex flex-col gap-1.5 border-b border-black/5 dark:border-white/5 pb-3">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-gray-500 dark:text-zinc-400 font-medium">
@@ -967,7 +936,6 @@ export default function DashboardClient({
                   </div>
                 </div>
 
-                {/* Recovery Speed */}
                 <div className="flex flex-col gap-1.5 border-b border-black/5 dark:border-white/5 pb-3">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-gray-500 dark:text-zinc-400 font-medium">
@@ -998,7 +966,6 @@ export default function DashboardClient({
                   </div>
                 </div>
 
-                {/* Comeback Streak */}
                 <div className="flex flex-col gap-1.5">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-gray-500 dark:text-zinc-400 font-medium">
@@ -1034,7 +1001,6 @@ export default function DashboardClient({
             </motion.div>
           </div>
 
-          {/* Languages Radar Chart comparison */}
           <div className="grid grid-cols-1 gap-6">
             <RadarChart
               languagesA={initialData.languages}
@@ -1044,7 +1010,6 @@ export default function DashboardClient({
             />
           </div>
 
-          {/* Growth Trend and Commit Battle Timeline */}
           <div className="grid grid-cols-1 gap-6">
             <GrowthTrendChart
               activityA={initialData.activity}
@@ -1054,7 +1019,6 @@ export default function DashboardClient({
             />
           </div>
 
-          {/* Detailed side-by-side components */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="flex flex-col gap-2">
               <h4 className="text-xs text-[#A1A1AA] uppercase tracking-wider font-semibold text-center lg:text-left">
@@ -1109,14 +1073,12 @@ export default function DashboardClient({
         </div>
       )}
 
-      {/* Compare Modal */}
       <AnimatePresence>
         {isModalOpen && (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
             onKeyDown={handleModalKeyDown}
           >
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1126,7 +1088,6 @@ export default function DashboardClient({
               aria-hidden="true"
             />
 
-            {/* Modal Dialog */}
             <motion.div
               ref={modalRef}
               role="dialog"
@@ -1139,7 +1100,6 @@ export default function DashboardClient({
               onAnimationComplete={handleModalAnimationComplete}
               className="relative w-full max-w-md overflow-hidden rounded-2xl border border-black/10 bg-white p-6 dark:border-[rgba(255,255,255,0.08)] dark:bg-[#0a0a0a] shadow-xl"
             >
-              {/* Close Button */}
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="absolute right-4 top-4 rounded-xl p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 dark:text-white/65 hover:text-black dark:hover:text-white transition-all"
