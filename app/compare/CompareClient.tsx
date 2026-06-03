@@ -211,17 +211,86 @@ function StatBattle({
   );
 }
 
+/* ── helper: developer persona ────────────────────────────────────────── */
+
+function getDeveloperPersona(user: CompareUserData) {
+  const { stats, profile, activity } = user;
+
+  let additions = 0;
+  let deletions = 0;
+  activity.forEach((a) => {
+    additions += a.locAdditions || 0;
+    deletions += a.locDeletions || 0;
+  });
+
+  // Determine Persona based on stats
+  if (stats.currentStreak > 30 || stats.totalContributions > 2000) {
+    return {
+      name: 'The Machine',
+      icon: Cpu,
+      color: 'from-purple-500 to-indigo-500',
+      text: 'text-purple-400',
+      border: 'border-purple-500/30',
+      shadow: 'shadow-[0_0_15px_rgba(168,85,247,0.4)]',
+    };
+  }
+  if (deletions > 0 && deletions > additions * 1.5) {
+    return {
+      name: 'The Refactorer',
+      icon: RefreshCw,
+      color: 'from-rose-500 to-orange-500',
+      text: 'text-rose-400',
+      border: 'border-rose-500/30',
+      shadow: 'shadow-[0_0_15px_rgba(244,63,94,0.4)]',
+    };
+  }
+  if (profile.stats.stars > 200) {
+    return {
+      name: 'The Architect',
+      icon: Component,
+      color: 'from-amber-400 to-yellow-600',
+      text: 'text-amber-400',
+      border: 'border-amber-500/30',
+      shadow: 'shadow-[0_0_15px_rgba(251,191,36,0.4)]',
+    };
+  }
+  if ((stats.totalPRs || 0) > 50) {
+    return {
+      name: 'Team Player',
+      icon: UsersIcon,
+      color: 'from-blue-400 to-cyan-500',
+      text: 'text-blue-400',
+      border: 'border-blue-500/30',
+      shadow: 'shadow-[0_0_15px_rgba(59,130,246,0.4)]',
+    };
+  }
+  if (stats.peakStreak > 14) {
+    return {
+      name: 'Consistent Coder',
+      icon: CalendarDays,
+      color: 'from-emerald-400 to-teal-500',
+      text: 'text-emerald-400',
+      border: 'border-emerald-500/30',
+      shadow: 'shadow-[0_0_15px_rgba(16,185,129,0.4)]',
+    };
+  }
+  return {
+    name: 'Weekend Warrior',
+    icon: Tent,
+    color: 'from-zinc-400 to-gray-600',
+    text: 'text-zinc-400',
+    border: 'border-zinc-500/30',
+    shadow: 'shadow-[0_0_15px_rgba(161,161,170,0.4)]',
+  };
+}
+
 /* ── helper: profile card ─────────────────────────────────────────────── */
 
-function CompareProfileCard({
-  profile,
-  stats,
-  side,
-}: {
-  profile: UserProfile;
-  stats: UserStats;
-  side: 'left' | 'right';
-}) {
+function CompareProfileCard({ user, side }: { user: CompareUserData; side: 'left' | 'right' }) {
+  const { profile, stats } = user;
+  const persona = getDeveloperPersona(user);
+  const PersonaIcon = persona.icon;
+
   return (
     <motion.div
       initial={{ opacity: 0, x: side === 'left' ? -20 : 20 }}
@@ -243,15 +312,41 @@ function CompareProfileCard({
             />
           </div>
           {profile.isPro && (
-            <span className="absolute -bottom-1 -right-1 text-[8px] font-bold bg-black text-white dark:bg-white dark:text-black px-1.5 py-0.5 rounded-full">
+            <span className="absolute -top-1 -right-2 text-[10px] font-black bg-black text-white dark:bg-white dark:text-black px-2 py-0.5 rounded-full shadow-lg z-10 border border-black/10 dark:border-white/10">
               PRO
             </span>
           )}
         </div>
 
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-0.5">
-          {profile.name}
-        </h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{profile.name}</h3>
+
+        {/* Animated Developer Persona Badge */}
+        <motion.div
+          initial={{ opacity: 0, y: 10, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{
+            type: 'spring',
+            stiffness: 200,
+            damping: 15,
+            delay: side === 'left' ? 0.3 : 0.4,
+          }}
+          whileHover={{ scale: 1.05 }}
+          className={`relative flex items-center gap-1.5 px-3 py-1 mb-4 rounded-full border bg-white/5 dark:bg-black/20 backdrop-blur-sm ${persona.border} ${persona.shadow}`}
+        >
+          {/* Subtle background glow that pulses */}
+          <motion.div
+            animate={{ opacity: [0.3, 0.6, 0.3] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+            className={`absolute inset-0 rounded-full bg-gradient-to-r ${persona.color} opacity-20 blur-sm`}
+          />
+          <PersonaIcon size={12} className={persona.text} />
+          <span
+            className={`text-[10px] font-bold uppercase tracking-wider bg-clip-text text-transparent bg-gradient-to-r ${persona.color}`}
+          >
+            {persona.name}
+          </span>
+        </motion.div>
+
         <p className="text-sm text-[#A1A1AA] mb-3">@{profile.username}</p>
         <p className="text-xs text-[#A1A1AA] leading-relaxed mb-4 max-w-[200px] line-clamp-2">
           {profile.bio}
