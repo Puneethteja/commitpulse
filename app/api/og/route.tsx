@@ -37,6 +37,9 @@ function getLuminance(hex: string) {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
+  const parsed = ogParamsSchema.parse(Object.fromEntries(searchParams.entries()));
+  let { user } = parsed;
+  const { theme, bg, text, accent } = parsed;
 
   const parseResult = ogParamsSchema.safeParse(Object.fromEntries(searchParams.entries()));
 
@@ -51,6 +54,8 @@ export async function GET(req: NextRequest) {
   }
 
   const { user, theme, bg, text, accent, refresh } = parseResult.data;
+  // Sanitize user: limit to 39 chars (GitHub max length) and strip invalid chars
+  user = user.slice(0, 39).replace(/[^a-zA-Z0-9-]/g, '');
 
   const selectedTheme = themes[theme] || themes.dark;
   const resolvedBg = `#${bg || selectedTheme.bg}`;
@@ -70,6 +75,8 @@ export async function GET(req: NextRequest) {
   // Only the data fetching is wrapped in try/catch — not the JSX rendering.
   try {
     const calendar = await fetchGitHubContributions(user, { bypassCache: refresh });
+    const userData = await fetchGitHubContributions(user, { bypassCache: true });
+    const calendar = userData.calendar;
     const stats = calculateStreak(calendar);
     totalCommits = stats.totalContributions;
     longestStreak = stats.longestStreak;
