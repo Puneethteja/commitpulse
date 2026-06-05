@@ -42,14 +42,26 @@ export default function Heatmap({
   const [scale, setScale] = useState(1);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
-  // Group into 7-day columns
+  // 1. Filter out future dates using the user's system clock
+  const validData = data.filter((day) => {
+    const dayDate = new Date(day.date);
+    const today = new Date();
+    
+    // Normalize times to strictly compare dates
+    dayDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    
+    return dayDate <= today;
+  });
+
+  // 2. Group into 7-day columns using validData instead of data
   const weeks: ActivityData[][] = [];
-  for (let i = 0; i < data.length; i += 7) {
-    weeks.push(data.slice(i, i + 7));
+  for (let i = 0; i < validData.length; i += 7) {
+    weeks.push(validData.slice(i, i + 7));
   }
 
   const naturalWidth = weeks.length * (CELL + GAP) - GAP;
-  const hasData = data.length > 0 && data.some((d) => d.count > 0);
+  const hasData = validData.length > 0 && validData.some((d) => d.count > 0);
 
   // Recalculate scale whenever the card resizes
   useEffect(() => {
@@ -70,7 +82,9 @@ export default function Heatmap({
     index: number
   ) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const streak = getLocalActiveStreak(data, index);
+    
+    // 3. Ensure streak calculation also uses validData
+    const streak = getLocalActiveStreak(validData, index);
 
     setTooltip({
       count: day.count,
