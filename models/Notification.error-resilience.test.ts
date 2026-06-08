@@ -2,6 +2,13 @@ import mongoose from 'mongoose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('Notification error resilience', () => {
+  
+  // TARGETED FIX: Helper function to force V8 to re-evaluate the file on every call
+  async function importFreshModel() {
+    const cacheBuster = Date.now() + Math.random();
+    return await import(`./Notification?update=${cacheBuster}`);
+  }
+
   beforeEach(() => {
     vi.resetModules();
     vi.restoreAllMocks();
@@ -15,10 +22,10 @@ describe('Notification error resilience', () => {
     vi.resetModules();
 
     const existingModel = { mocked: true };
-
     mongoose.models.Notification = existingModel as never;
 
-    const { Notification } = await import('./Notification');
+    // Fixed: Uses the fresh loader instead of standard cached static import
+    const { Notification } = await importFreshModel();
 
     expect(Notification).toBe(existingModel);
   });
@@ -26,7 +33,6 @@ describe('Notification error resilience', () => {
   it('should recover cleanly when mongoose.model throws unexpectedly', async () => {
     vi.resetModules();
 
-    // Force recreation instead of reusing cached model
     delete mongoose.models.Notification;
 
     vi.spyOn(mongoose, 'model').mockImplementation(() => {
@@ -36,7 +42,8 @@ describe('Notification error resilience', () => {
     let caughtError: Error | null = null;
 
     try {
-      await import('./Notification');
+      // Fixed: Cache-busting forces execution to reach your mongoose.model mock
+      await importFreshModel();
     } catch (error) {
       caughtError = error as Error;
     }
@@ -50,7 +57,8 @@ describe('Notification error resilience', () => {
 
     delete mongoose.models.Notification;
 
-    const { Notification } = await import('./Notification');
+    // Fixed
+    const { Notification } = await importFreshModel();
 
     const doc = new Notification({
       username: 'pari',
@@ -69,7 +77,8 @@ describe('Notification error resilience', () => {
 
     delete mongoose.models.Notification;
 
-    const { Notification } = await import('./Notification');
+    // Fixed
+    const { Notification } = await importFreshModel();
 
     const doc = new Notification({
       username: 'pari',
@@ -88,7 +97,8 @@ describe('Notification error resilience', () => {
 
     delete mongoose.models.Notification;
 
-    const { Notification } = await import('./Notification');
+    // Fixed
+    const { Notification } = await importFreshModel();
 
     const doc = new Notification({});
 
