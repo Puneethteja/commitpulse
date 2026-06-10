@@ -13,7 +13,6 @@ describe('User model — theme-contrast assessment', () => {
   it('defines username with required, unique, lowercase, and trim constraints', () => {
     const path = User.schema.path('username') as mongoose.SchemaTypeOptions<string>;
     expect(User.schema.path('username')).toBeDefined();
-    // @ts-expect-error — mongoose types do not expose .instance
     const instance = User.schema.path('username') as unknown as {
       options: { required: boolean; unique: boolean; lowercase: boolean; trim: boolean };
     };
@@ -26,7 +25,6 @@ describe('User model — theme-contrast assessment', () => {
   it('sets createdAt default to Date.now', () => {
     const path = User.schema.path('createdAt') as mongoose.SchemaTypeOptions<Date>;
     expect(User.schema.path('createdAt')).toBeDefined();
-    // @ts-expect-error — mongoose types do not expose .defaultValue cleanly
     const defaultValue = (
       User.schema.path('createdAt') as unknown as { options: { default: unknown } }
     ).options.default;
@@ -39,7 +37,6 @@ describe('User model — theme-contrast assessment', () => {
 
   it('sets visitCount default to 0', () => {
     expect(User.schema.path('visitCount')).toBeDefined();
-    // @ts-expect-error — mongoose types do not expose .defaultValue cleanly
     const defaultValue = (
       User.schema.path('visitCount') as unknown as { options: { default: number } }
     ).options.default;
