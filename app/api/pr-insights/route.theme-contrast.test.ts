@@ -39,91 +39,81 @@ const mockInsights: PRInsightData = {
   },
 };
 
-function makeRequest(
-  params: Record<string, string> = {},
-  headers: Record<string, string> = {}
-): Request {
+function makeRequest(params: Record<string, string> = {}): Request {
   const url = new URL('http://localhost/api/pr-insights');
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
-  return new Request(url.toString(), {
-    headers: new Headers(headers),
-  });
+  return new Request(url.toString());
 }
 
-describe('GET /api/pr-insights theme-contrast: Dark and Light Prefers-Color-Scheme Visual Cohesion', () => {
+describe('GET /api/pr-insights', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(fetchPRInsights).mockResolvedValue(mockInsights);
   });
 
-  it('returns identical data structure regardless of dark or light prefers-color-scheme header', async () => {
-    const darkResponse = await GET(
-      makeRequest({ username: 'testuser' }, { 'sec-ch-prefers-color-scheme': 'dark' })
-    );
-    const lightResponse = await GET(
-      makeRequest({ username: 'testuser' }, { 'sec-ch-prefers-color-scheme': 'light' })
-    );
+  it('returns 400 when the username parameter is missing', async () => {
+    const response = await GET(makeRequest());
 
-    const darkBody = await darkResponse.json();
-    const lightBody = await lightResponse.json();
-
-    // API is theme-agnostic — payload must be identical for both color schemes
-    expect(darkBody).toEqual(lightBody);
-    expect(darkResponse.status).toBe(200);
-    expect(lightResponse.status).toBe(200);
-  });
-
-  it('returns numeric stat fields suitable for color-coded badges in both themes', async () => {
-    const response = await GET(makeRequest({ username: 'testuser' }));
+    expect(response.status).toBe(400);
     const body = await response.json();
-
-    // mergeRate, totalPRs etc are rendered as colored stat cards in both light/dark UI
-    expect(typeof body.mergeRate).toBe('number');
-    expect(typeof body.totalPRs).toBe('number');
-    expect(typeof body.openPRs).toBe('number');
-    expect(typeof body.mergedPRs).toBe('number');
-    expect(typeof body.closedPRs).toBe('number');
+    expect(body.error).toBe('Username is required');
+    expect(fetchPRInsights).not.toHaveBeenCalled();
   });
 
-  it('returns highlight fields with title and url required for accessible link contrast styling', async () => {
-    const response = await GET(makeRequest({ username: 'testuser' }));
+  it('returns 400 when the username exceeds the 39 character GitHub limit', async () => {
+    const longUsername = 'a'.repeat(40);
+    const response = await GET(makeRequest({ username: longUsername }));
+
+    expect(response.status).toBe(400);
     const body = await response.json();
-
-    // Highlight cards need title/url text for theme-aware link styling
-    expect(body.highlights.mostDiscussed).toHaveProperty('title');
-    expect(body.highlights.mostDiscussed).toHaveProperty('url');
-    expect(body.highlights.fastestMerged).toHaveProperty('title');
-    expect(body.highlights.largest).toHaveProperty('title');
+    expect(body.error).toBe('Invalid GitHub username');
+    expect(fetchPRInsights).not.toHaveBeenCalled();
   });
 
-  it('returns consistent error response and Content-Type regardless of theme headers', async () => {
-    const darkResponse = await GET(makeRequest({}, { 'sec-ch-prefers-color-scheme': 'dark' }));
-    const lightResponse = await GET(makeRequest({}, { 'sec-ch-prefers-color-scheme': 'light' }));
+  it('returns 400 for a username containing invalid characters', async () => {
+    const response = await GET(makeRequest({ username: 'invalid_user!' }));
 
-    expect(darkResponse.status).toBe(400);
-    expect(lightResponse.status).toBe(400);
-
-    expect(darkResponse.headers.get('content-type')).toMatch(/application\/json/);
-    expect(lightResponse.headers.get('content-type')).toMatch(/application\/json/);
-
-    const darkBody = await darkResponse.json();
-    const lightBody = await lightResponse.json();
-    expect(darkBody.error).toBe(lightBody.error);
-  });
-
-  it('returns repoPerformance array with mergeRate values usable for progress bar contrast styling in both themes', async () => {
-    const response = await GET(makeRequest({ username: 'testuser' }));
+    expect(response.status).toBe(400);
     const body = await response.json();
+    expect(body.error).toBe('Invalid GitHub username');
+    expect(fetchPRInsights).not.toHaveBeenCalled();
+  });
 
-    expect(Array.isArray(body.repoPerformance)).toBe(true);
-    body.repoPerformance.forEach((repo: { mergeRate: number; name: string }) => {
-      // mergeRate drives progress bar fill color in both light/dark themes
-      expect(typeof repo.mergeRate).toBe('number');
-      expect(repo.mergeRate).toBeGreaterThanOrEqual(0);
-      expect(repo.mergeRate).toBeLessThanOrEqual(100);
-      expect(typeof repo.name).toBe('string');
-    });
+  it('trims whitespace from the username before validation and fetching', async () => {
+    const response = await GET(makeRequest({ username: '  octocat  ' }));
+
+    expect(response.status).toBe(200);
+    expect(fetchPRInsights).toHaveBeenCalledWith('octocat');
+  });
+
+  it('returns the full PR insights payload on a successful fetch', async () => {
+    const response = await GET(makeRequest({ username: 'octocat' }));
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toEqual(mockInsights);
+    expect(fetchPRInsights).toHaveBeenCalledWith('octocat');
+  });
+
+  it('returns 500 with the error message when fetchPRInsights throws an Error', async () => {
+    vi.mocked(fetchPRInsights).mockRejectedValue(new Error('GitHub API error'));
+
+    const response = await GET(makeRequest({ username: 'octocat' }));
+
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.error).toBe('GitHub API error');
+  });
+
+  it('returns 500 with a generic message when fetchPRInsights throws a non-Error value', async () => {
+    vi.mocked(fetchPRInsights).mockRejectedValue('unexpected failure');
+
+    const response = await GET(makeRequest({ username: 'octocat' }));
+
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.error).toBe('Failed to fetch PR insights');
   });
 });
