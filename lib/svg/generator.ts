@@ -2953,11 +2953,18 @@ export function generateRateLimitSVG(
   accent: string,
   text: string,
   radius: number,
-  speed: string = '8s'
+  speed: string = '8s',
+  isCircuitOpen = false
 ): string {
   const ghostTowersHtml = renderGhostTowers(GHOST_LAYOUT, accent);
 
   const safeId = 'rate_limit';
+  const subtitle = isCircuitOpen ? 'CIRCUIT BREAKER' : 'RATE LIMITED';
+  const subtitleWidth = isCircuitOpen ? 220 : 180;
+  const subtitleRectX = 300 - subtitleWidth / 2;
+  const note = isCircuitOpen
+    ? 'Circuit breaker active. System is temporarily offline.'
+    : 'Please wait a moment before trying again';
 
   return `<svg
   xmlns="http://www.w3.org/2000/svg"
@@ -3019,17 +3026,17 @@ export function generateRateLimitSVG(
   <path d="M300 172 V200 M300 210 V210.1"
     stroke="${accent}" stroke-width="2.5" stroke-linecap="round" stroke-opacity="0.6"/>
 
-  <rect x="210" y="235" width="180" height="22" rx="4"
+  <rect x="${subtitleRectX}" y="235" width="${subtitleWidth}" height="22" rx="4"
     fill="${accent}" fill-opacity="0.08"
     stroke="${accent}" stroke-width="0.8" stroke-opacity="0.25"/>
   <text x="300" y="250" text-anchor="middle"
     font-family="Syncopate, sans-serif" font-size="9" font-weight="700"
-    fill="${accent}" opacity="0.7" letter-spacing="4">RATE LIMITED</text>
+    fill="${accent}" opacity="0.7" letter-spacing="4">${subtitle}</text>
 
   <text x="300" y="278" text-anchor="middle"
     font-family="Space Grotesk, sans-serif" font-size="11"
     fill="${text}" opacity="0.3">
-    Please wait a moment before trying again
+    ${note}
   </text>
 
   <g transform="translate(40, 340)">

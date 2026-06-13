@@ -617,6 +617,15 @@ export function displayName(profile: GitHubUserProfile): string {
   return profile.login;
 }
 
+export function getCircuitTelemetry() {
+  const now = Date.now();
+  const isOpen = now < globalCircuitBreakerOpenUntil;
+  return {
+    isOpen,
+    resetInMs: isOpen ? Math.max(0, globalCircuitBreakerOpenUntil - now) : 0,
+  };
+}
+
 /* ==========================================================================
  * DATA FETCHING
  * ========================================================================== */

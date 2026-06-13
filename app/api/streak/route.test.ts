@@ -8,6 +8,7 @@ import { GET } from './route';
 vi.mock('../../../lib/github', () => ({
   fetchGitHubContributions: vi.fn(),
   getOrgDashboardData: vi.fn(),
+  getCircuitTelemetry: vi.fn().mockReturnValue({ isOpen: false, resetInMs: 0 }),
 }));
 
 vi.mock('../../../utils/time', () => ({
@@ -15,7 +16,11 @@ vi.mock('../../../utils/time', () => ({
   getSecondsUntilMidnightInTimezone: vi.fn(),
 }));
 
-import { fetchGitHubContributions, getOrgDashboardData } from '../../../lib/github';
+import {
+  fetchGitHubContributions,
+  getOrgDashboardData,
+  getCircuitTelemetry,
+} from '../../../lib/github';
 import { getSecondsUntilUTCMidnight, getSecondsUntilMidnightInTimezone } from '../../../utils/time';
 import type { ContributionCalendar, ExtendedContributionData } from '../../../types';
 
@@ -408,6 +413,21 @@ describe('GET /api/streak', () => {
       const body = await response.text();
       expect(body).toContain('<svg');
       expect(body).toContain('API RATE LIMIT');
+    });
+
+    it('Scenario 6: Circuit Breaker Open Telemetry', async () => {
+      vi.mocked(fetchGitHubContributions).mockRejectedValue(new Error('API Rate Limit Exceeded'));
+      vi.mocked(getCircuitTelemetry).mockReturnValue({ isOpen: true, resetInMs: 12345 });
+
+      const response = await GET(makeRequest({ user: 'octocat' }));
+      expect(response.status).toBe(429);
+      expect(response.headers.get('X-CommitPulse-Circuit-Status')).toBe('Open');
+      expect(response.headers.get('X-CommitPulse-Circuit-Reset-In')).toBe('12345');
+
+      const body = await response.text();
+      expect(body).toContain('<svg');
+      expect(body).toContain('CIRCUIT BREAKER');
+      expect(body).toContain('Circuit breaker active. System is temporarily offline.');
     });
   });
 

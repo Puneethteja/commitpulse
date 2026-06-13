@@ -2,7 +2,7 @@
 
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
-import { fetchGitHubContributions, getOrgDashboardData } from '@/lib/github';
+import { fetchGitHubContributions, getOrgDashboardData, getCircuitTelemetry } from '@/lib/github';
 import {
   calculateStreak,
   calculateMonthlyStats,
@@ -559,14 +559,24 @@ function buildErrorResponse(error: unknown, parseResult: ParseResult): NextRespo
   const errSpeed = (parseResult.success && parseResult.data.speed) || '8s';
 
   if (isRateLimit) {
-    const svg = generateRateLimitSVG(errBg, errAccent, errText, errRadius, errSpeed);
+    const telemetry = getCircuitTelemetry();
+    const isCircuitOpen = telemetry.isOpen;
+    const svg = generateRateLimitSVG(errBg, errAccent, errText, errRadius, errSpeed, isCircuitOpen);
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'image/svg+xml',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Content-Security-Policy': SVG_CSP_HEADER,
+    };
+
+    if (isCircuitOpen) {
+      headers['X-CommitPulse-Circuit-Status'] = 'Open';
+      headers['X-CommitPulse-Circuit-Reset-In'] = String(telemetry.resetInMs);
+    }
+
     return new NextResponse(svg, {
       status: 429,
-      headers: {
-        'Content-Type': 'image/svg+xml',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Content-Security-Policy': SVG_CSP_HEADER,
-      },
+      headers,
     });
   }
 
