@@ -1,27 +1,29 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
 
-// Global mock for fetch to prevent real network requests during testing
-const mockFetch = vi.fn().mockResolvedValue({
-  ok: true,
-  status: 200,
-  json: async () => [
+// Global fallback for fetch to prevent real network requests during testing
+const globalFetchFallback = async (): Promise<Response> => {
+  return new Response(
+    JSON.stringify([
+      {
+        id: 1,
+        login: 'test-user',
+        avatar_url: 'https://example.com/avatar.png',
+        contributions: 15,
+        html_url: 'https://github.com/test-user',
+      },
+    ]),
     {
-      id: 1,
-      login: 'test-user',
-      avatar_url: 'https://example.com/avatar.png',
-      contributions: 15,
-      html_url: 'https://github.com/test-user',
-    },
-  ],
-  headers: new Headers({
-    'x-ratelimit-remaining': '60',
-    'x-ratelimit-reset': '1672531199',
-  }),
-} as unknown as Response);
+      status: 200,
+      headers: {
+        'x-ratelimit-remaining': '60',
+        'x-ratelimit-reset': '1672531199',
+      },
+    }
+  );
+};
 
 Object.defineProperty(globalThis, 'fetch', {
-  value: mockFetch,
+  value: globalFetchFallback,
   writable: true,
   configurable: true,
 });
