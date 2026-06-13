@@ -18,7 +18,7 @@ export const RADAR_AXES = [
   { label: 'Weekend Activity', id: 'weekend' },
   { label: 'Night Owl', id: 'nightOwl' },
   { label: 'Growth', id: 'growth' },
-  { label: 'Diversity', id: 'diversity' }
+  { label: 'Diversity', id: 'diversity' },
 ];
 
 export const USERNAME_LABEL_X = 30;
