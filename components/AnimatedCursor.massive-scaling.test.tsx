@@ -3,17 +3,28 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import AnimatedCursor from './AnimatedCursor';
 
 describe('AnimatedCursor Massive Scaling & High Bounds Tests', () => {
+  let originalMatchMedia: typeof window.matchMedia;
+
   beforeEach(() => {
     vi.useFakeTimers();
+    
+    // FIX: Provide a mock linear ID and pass a high-res timestamp to the callback
+    let rafId = 0;
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
-      return setTimeout(cb, 16) as unknown as number;
+      rafId += 1;
+      setTimeout(() => cb(performance.now()), 16);
+      return rafId;
     });
+
     vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
       clearTimeout(id);
     });
 
+    // FIX: Store original reference to prevent environment pollution
+    originalMatchMedia = window.matchMedia;
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
+      configurable: true, // Allows us to redefine/delete it later
       value: vi.fn().mockImplementation((query) => ({
         matches: true,
         media: query,
@@ -28,9 +39,17 @@ describe('AnimatedCursor Massive Scaling & High Bounds Tests', () => {
   });
 
   afterEach(() => {
-    vi.runOnlyPendingTimers();
+    // FIX: Safely clear out nested timers instead of running pending loops
+    vi.clearAllTimers();
     vi.useRealTimers();
     vi.restoreAllMocks();
+
+    // FIX: Restore matchMedia to its original state
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: originalMatchMedia,
+    });
   });
 
   it('1. gracefully handles thousands of rapid coordinate updates without execution buffer overflows', () => {
